@@ -3,12 +3,11 @@
 #include <DNSServer.h>
 
 const char* ssid = "WifiChat 1.0";
-const char* password = ""; // No password
+const char* password = ""; // Set a secure password
 
 AsyncWebServer server(80);
 DNSServer dnsServer;
 
-// Define the number of messages to keep
 const int maxMessages = 5;
 struct Message {
   String sender;
@@ -17,94 +16,77 @@ struct Message {
 Message messages[maxMessages];
 int messageIndex = 0;
 
-// Captive portal redirect URL
-const String portalRedirectURL = "/";
+const char htmlPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body { font-family: Arial, sans-serif; margin: 0; padding: 0; text-align: center; }
+  h1 { color: #333; }
+  form { margin: 20px auto; max-width: 500px; }
+  input[type=text] { width: calc(100% - 22px); padding: 10px; margin: 10px 0; box-sizing: border-box; }
+  input[type=submit] { padding: 10px 20px; background-color: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; }
+  input[type=submit]:hover { background-color: #0056b3; }
+  ul { list-style-type: none; padding: 0; margin: 20px auto; max-width: 500px; }
+  li { background-color: #f9f9f9; margin: 5px 0; padding: 10px; border-radius: 5px; word-wrap: break-word; overflow-wrap: break-word; white-space: pre-wrap; }
+  #deviceCount { margin: 20px auto; max-width: 500px; }
+  .warning { color: red; margin-bottom: 20px; }
+</style>
+<script>
+function fetchData() {
+  fetch('/messages').then(response => response.json()).then(data => {
+    const ul = document.getElementById('messageList');
+    ul.innerHTML = data.messages.map(msg => `<li>${msg.sender}: ${msg.message}</li>`).join('');
+  });
+  fetch('/deviceCount').then(response => response.json()).then(data => {
+    document.getElementById('deviceCount').textContent = 'Users Online: ' + data.count;
+  });
+}
+window.onload = function() {
+  loadName();
+  fetchData();
+  setInterval(fetchData, 10000); // Fetch data every 10 seconds
+};
+function saveName() {
+  const nameInput = document.getElementById('nameInput');
+  localStorage.setItem('username', nameInput.value);
+}
+function loadName() {
+  const savedName = localStorage.getItem('username');
+  if (savedName) {
+    document.getElementById('nameInput').value = savedName;
+  }
+}
+</script>
+</head>
+<body>
+<h2>WiFiChat 1.0</h2>
+<div class='warning'>For your safety, do not share your location or any personal information!</div>
+<form action="/update" method="POST" onsubmit="saveName()">
+  <input type="text" id="nameInput" name="sender" placeholder="Enter your name" required />
+  <input type="text" name="msg" placeholder="Enter your message" required />
+  <input type="submit" value="Send" />
+</form>
+<div id='deviceCount'>Users Online: 0</div>
+<ul id='messageList'></ul>
+</body>
+</html>
+)rawliteral";
 
 void setup() {
   Serial.begin(115200);
 
-  // Set up Wi-Fi access point with maximum power
   WiFi.softAP(ssid, password);
-  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Set Wi-Fi power to maximum
+  WiFi.setTxPower(WIFI_POWER_19_5dBm); // Adjust power as needed to conserve energy
   Serial.println("Access Point started with full power");
 
-  // Set up DNS server to redirect all requests to the captive portal
   dnsServer.start(53, "*", WiFi.softAPIP());
 
-  // Serve the main page
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    String html = "<!DOCTYPE html><html><head>";
-    html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">";
-    html += "<style>";
-    html += "body { font-family: Arial, sans-serif; margin: 0; padding: 0; text-align: center; }";
-    html += "h1 { color: #333; }";
-    html += "form { margin: 20px auto; max-width: 500px; }";
-    html += "input[type=text] { width: calc(100% - 22px); padding: 10px; margin: 10px 0; box-sizing: border-box; }";
-    html += "input[type=submit] { padding: 10px 20px; background-color: #007BFF; color: white; border: none; border-radius: 5px; cursor: pointer; }";
-    html += "input[type=submit]:hover { background-color: #0056b3; }";
-    html += "ul { list-style-type: none; padding: 0; margin: 20px auto; max-width: 500px; }";
-    html += "li {";
-    html += "  background-color: #f9f9f9;";
-    html += "  margin: 5px 0;";
-    html += "  padding: 10px;";
-    html += "  border-radius: 5px;";
-    html += "  word-wrap: break-word;"; // Break long words to fit within the container
-    html += "  overflow-wrap: break-word;"; // For handling overflow in long words
-    html += "  white-space: pre-wrap;"; // Preserve spaces and line breaks
-    html += "}";
-    html += "#deviceCount { margin: 20px auto; max-width: 500px; }";
-    html += ".warning { color: red; margin-bottom: 20px; }"; // Removed font-weight: bold
-    html += "</style>";
-    html += "<script>";
-    html += "function fetchMessages() {";
-    html += "  fetch('/messages').then(response => response.json()).then(data => {";
-    html += "    const ul = document.getElementById('messageList');";
-    html += "    ul.innerHTML = '';";
-    html += "    data.messages.forEach(msg => {";
-    html += "      const li = document.createElement('li');";
-    html += "      li.textContent = msg.sender + ': ' + msg.message;";
-    html += "      ul.appendChild(li);";
-    html += "    });";
-    html += "  });";
-    html += "}";
-    html += "function fetchDeviceCount() {";
-    html += "  fetch('/deviceCount').then(response => response.json()).then(data => {";
-    html += "    document.getElementById('deviceCount').textContent = 'Users Online: ' + data.count;";
-    html += "  });";
-    html += "}";
-    html += "function saveName() {";
-    html += "  const nameInput = document.getElementById('nameInput');";
-    html += "  localStorage.setItem('username', nameInput.value);";
-    html += "}";
-    html += "function loadName() {";
-    html += "  const savedName = localStorage.getItem('username');";
-    html += "  if (savedName) {";
-    html += "    document.getElementById('nameInput').value = savedName;";
-    html += "  }";
-    html += "}";
-    html += "window.onload = function() {";
-    html += "  loadName();";
-    html += "  fetchMessages();";
-    html += "  fetchDeviceCount();";
-    html += "  setInterval(fetchMessages, 5000);"; // Refresh messages every 5 seconds
-    html += "  setInterval(fetchDeviceCount, 5000);"; // Refresh device count every 5 seconds
-    html += "};";
-    html += "</script>";
-    html += "</head><body>";
-    html += "<h2>WiFiChat 1.0</h2>";
-    html += "<div class='warning'>For your safety, do not share your location or any personal information!</div>";
-    html += "<form action=\"/update\" method=\"POST\" onsubmit=\"saveName()\">";
-    html += "<input type=\"text\" id=\"nameInput\" name=\"sender\" placeholder=\"Enter your name\" required />";
-    html += "<input type=\"text\" name=\"msg\" placeholder=\"Enter your message\" required />";
-    html += "<input type=\"submit\" value=\"Send\" />";
-    html += "</form>";
-    html += "<div id='deviceCount'>Users Online: 0</div>";
-    html += "<ul id='messageList'></ul>"; // Messages shown below the form
-    html += "</body></html>";
-    request->send(200, "text/html", html);
+    request->send(200, "text/html", htmlPage);
   });
 
-  // Serve messages as JSON
   server.on("/messages", HTTP_GET, [](AsyncWebServerRequest *request){
     String json = "[";
     bool first = true;
@@ -120,13 +102,11 @@ void setup() {
     request->send(200, "application/json", "{\"messages\":" + json + "}");
   });
 
-  // Serve connected device count as JSON
   server.on("/deviceCount", HTTP_GET, [](AsyncWebServerRequest *request){
     int deviceCount = WiFi.softAPgetStationNum();
     request->send(200, "application/json", "{\"count\":" + String(deviceCount) + "}");
   });
 
-  // Handle message update
   server.on("/update", HTTP_POST, [](AsyncWebServerRequest *request){
     String newMessage = "";
     String senderName = "";
@@ -136,20 +116,23 @@ void setup() {
     if (request->hasParam("sender", true)) {
       senderName = request->getParam("sender", true)->value();
     }
-    
-    // Update messages array
+
+    // Sanitize user input
+    newMessage.replace("<", "&lt;");
+    newMessage.replace(">", "&gt;");
+    senderName.replace("<", "&lt;");
+    senderName.replace(">", "&gt;");
+
     messages[messageIndex].content = newMessage;
     messages[messageIndex].sender = senderName;
     messageIndex = (messageIndex + 1) % maxMessages;
-    
+
     request->redirect("/");
   });
 
-  // Start the server
   server.begin();
 }
 
 void loop() {
   dnsServer.processNextRequest();
 }
-
