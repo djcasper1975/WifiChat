@@ -7,9 +7,8 @@ Local WiFi Network: The ESP32 acts as an access point, creating a local WiFi net
 Web-based Chat Interface: Users can send messages and view chat history directly through a web page hosted by the ESP32.
 Real-time Device Count: Displays the number of connected users and lists other mesh node ids connected.
 No Internet Required: Operates completely offline, making it ideal for local communication without external dependencies.
-
-Instructions for Running WiFiChat 1.0 and Accessing the Chat
-This code sets up a simple WiFi chat application using an ESP32 microcontroller. It hosts a web-based chat interface where users can send messages, view connected devices, and block or unblock devices based on their IP addresses.
+Basic Low L evel Admin control: 
+You can now block or unblock devices based on their IP addresses.
 
 Setup Instructions:
 Install Required Libraries:
