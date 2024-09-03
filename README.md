@@ -1,7 +1,12 @@
-A simple Esp32 project that acts as a wifi portal for connected users to exchange messages via html webpage.
-To access web chat when conected to esp32 wifi just input http://anything to your browser after connecting to the esp32 wifi and it will bring up the web chat. (do not use https://)
-you can type http://anything/devices to access admin tools.
-Wifi chat currently has no password to connect the wifi but you can add one if you wish this to be private.
+WiFiChat 1.0
+
+WiFiChat 1.0 is a lightweight web-based chat application designed for ESP32 microcontrollers, allowing users to communicate over a local WiFi network without needing an internet connection. This project uses the ESPAsyncWebServer to host a chat interface accessible through any WiFi-enabled device, making it perfect for local communications in closed environments like classrooms, workshops, or other local gatherings.
+
+Features
+Local WiFi Network: The ESP32 acts as an access point, creating a local WiFi network for users to connect and chat.
+Web-based Chat Interface: Users can send messages and view chat history directly through a web page hosted by the ESP32.
+Real-time Device Count: Displays the number of connected users and lists other mesh node ids connected.
+No Internet Required: Operates completely offline, making it ideal for local communication without external dependencies.
 
 Instructions for Running WiFiChat 1.0 and Accessing the Chat
 This code sets up a simple WiFi chat application using an ESP32 microcontroller. It hosts a web-based chat interface where users can send messages, view connected devices, and block or unblock devices based on their IP addresses.
