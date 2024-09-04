@@ -41,10 +41,13 @@ const char htmlPage[] PROGMEM = R"rawliteral(
 </style>
 <script>
 function fetchData() {
-  fetch('/messages').then(response => response.json()).then(data => {
-    const ul = document.getElementById('messageList');
-    ul.innerHTML = data.messages.map(msg => `<li>${msg.sender}: ${msg.message}</li>`).join('');
-  });
+  fetch('/messages')
+    .then(response => response.json())
+    .then(data => {
+      const ul = document.getElementById('messageList');
+      // Reverse the messages to show the latest at the top
+      ul.innerHTML = data.messages.reverse().map(msg => `<li>${msg.sender}: ${msg.message}</li>`).join('');
+    });
   updateDeviceCount();
 }
 
@@ -84,6 +87,7 @@ window.onload = function() {
 </form>
 <div id='deviceCount'>Users Online: 0</div>
 <ul id='messageList'></ul>
+<p>github.com/djcasper1975</p>
 </body>
 </html>
 )rawliteral";
