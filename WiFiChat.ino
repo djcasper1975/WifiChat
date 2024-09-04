@@ -3,12 +3,12 @@
 #include <DNSServer.h>
 
 const char* ssid = "WifiChat 1.0";
-const char* password = ""; // Set a secure password
+const char* password = ""; // Set a secure password (only if you want this private)
 
 AsyncWebServer server(80);
 DNSServer dnsServer;
 
-const int maxMessages = 5;
+const int maxMessages = 10;
 struct Message {
   String sender;
   String content;
