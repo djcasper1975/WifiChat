@@ -8,4 +8,6 @@ files are named with the correct flash adress so just copy the adress from the f
 0x8000WiFiChat.ino.partitions.bin     0x8000
 0x10000WiFiChat.ino.bin      0x10000   
 
+after flashing you must power off and on again.
+
 
