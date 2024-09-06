@@ -3,7 +3,7 @@
 #include <DNSServer.h>
 
 const char* ssid = "WifiChat 1.0";
-const char* password = ""; // Set a secure password (only if you want this private)
+const char* password = ""; // Set a secure password if you want this private
 
 AsyncWebServer server(80);
 DNSServer dnsServer;
@@ -40,21 +40,37 @@ const char htmlPage[] PROGMEM = R"rawliteral(
   .link:hover { text-decoration: underline; }
 </style>
 <script>
+let lastDeviceCount = 0;
+
 function fetchData() {
   fetch('/messages')
-    .then(response => response.json())
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
     .then(data => {
       const ul = document.getElementById('messageList');
-      // Reverse the messages to show the latest at the top
-      ul.innerHTML = data.messages.reverse().map(msg => `<li>${msg.sender}: ${msg.message}</li>`).join('');
-    });
-  updateDeviceCount();
+      if (data && data.messages) {
+        ul.innerHTML = data.messages.reverse().map(msg => `<li>${msg.sender}: ${msg.message}</li>`).join('');
+      } else {
+        console.error('Failed to fetch messages: Data format incorrect', data);
+      }
+    })
+    .catch(error => console.error('Error fetching messages:', error));
 }
 
 function updateDeviceCount() {
-  fetch('/deviceCount').then(response => response.json()).then(data => {
-    document.getElementById('deviceCount').textContent = 'Users Online: ' + data.count;
-  });
+  fetch('/deviceCount')
+    .then(response => response.json())
+    .then(data => {
+      if (data.count !== lastDeviceCount) {
+        document.getElementById('deviceCount').textContent = 'Users Online: ' + data.count;
+        lastDeviceCount = data.count;
+      }
+    })
+    .catch(error => console.error('Error fetching device count:', error));
 }
 
 function saveName() {
@@ -72,6 +88,7 @@ function loadName() {
 window.onload = function() {
   loadName();
   fetchData();
+  updateDeviceCount();
   setInterval(fetchData, 5000);
   setInterval(updateDeviceCount, 5000);
 };
@@ -88,6 +105,69 @@ window.onload = function() {
 <div id='deviceCount'>Users Online: 0</div>
 <ul id='messageList'></ul>
 <p>github.com/djcasper1975</p>
+</body>
+</html>
+)rawliteral";
+
+const char blockedPage[] PROGMEM = R"rawliteral(
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background-color: #f8f9fa;
+      font-family: 'Arial', sans-serif;
+      text-align: center;
+      color: #333;
+    }
+    .container {
+      background: #ffffff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      max-width: 90%;
+      width: 400px;
+    }
+    h1 {
+      font-size: 24px;
+      margin-bottom: 10px;
+      color: #d9534f;
+    }
+    p {
+      font-size: 16px;
+      margin-bottom: 20px;
+    }
+    .btn {
+      display: inline-block;
+      padding: 10px 20px;
+      font-size: 16px;
+      color: #fff;
+      background-color: #007bff;
+      border: none;
+      border-radius: 5px;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background-color 0.3s;
+    }
+    .btn:hover {
+      background-color: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Access Denied</h1>
+    <p>Your access has been blocked due to a policy violation.</p>
+    <p>If you believe this is a mistake, please contact the administrator.</p>
+    <a href="/" class="btn">Return to Home</a>
+  </div>
 </body>
 </html>
 )rawliteral";
@@ -210,12 +290,10 @@ void setup() {
 
   server.on("/messages", HTTP_GET, [](AsyncWebServerRequest *request){
     String json = "[";
-    bool first = true;
     for (int i = 0; i < currentMessageCount; i++) {
       if (!messages[i].content.isEmpty()) {
-        if (!first) json += ",";
+        if (i > 0) json += ",";
         json += "{\"sender\":\"" + messages[i].sender + "\",\"message\":\"" + messages[i].content + "\",\"ip\":\"" + messages[i].ip + "\"}";
-        first = false;
       }
     }
     json += "]";
@@ -231,35 +309,16 @@ void setup() {
 
       // Check if the IP is blocked
       if (std::find(blockedIPs.begin(), blockedIPs.end(), clientIP) != blockedIPs.end()) {
-        // Send a styled HTML response for blocked users
-        String blockMessage = R"rawliteral(
-          <!DOCTYPE html>
-          <html>
-          <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; text-align: center; background-color: #f8d7da; }
-            .block-warning { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; padding: 20px; border-radius: 5px; margin-top: 50px; }
-            h1 { color: #721c24; }
-          </style>
-          </head>
-          <body>
-            <div class="block-warning">
-              <h1>Access Denied</h1>
-              <p>Your IP address has been blocked due to inappropriate activity.</p>
-              <p>Please contact the administrator if you believe this is a mistake.</p>
-            </div>
-          </body>
-          </html>
-        )rawliteral";
-        request->send(403, "text/html", blockMessage);
+        request->send_P(403, "text/html", blockedPage);
         return;
       }
 
-      // Normal message processing
+      // Properly add the new message
       messages[messageIndex].content = newMessage;
       messages[messageIndex].sender = senderName;
       messages[messageIndex].ip = clientIP;
+
+      // Update indices correctly
       messageIndex = (messageIndex + 1) % maxMessages;
       if (currentMessageCount < maxMessages) currentMessageCount++;
     }
@@ -269,24 +328,23 @@ void setup() {
   server.on("/deleteMessage", HTTP_GET, [](AsyncWebServerRequest *request){
     if (request->hasParam("index")) {
       int index = request->getParam("index")->value().toInt();
-      Serial.print("Attempting to delete message at index: ");
-      Serial.println(index);
       if (index >= 0 && index < currentMessageCount) {
-        // Shift messages to maintain order after deletion
+        // Correctly delete the message and adjust array
         for (int i = index; i < currentMessageCount - 1; i++) {
           messages[i] = messages[i + 1];
         }
-        // Clear the last message now that everything is shifted
-        messages[currentMessageCount - 1] = {"", "", ""};
+        messages[currentMessageCount - 1] = {"", "", ""}; // Clear the last message slot
         currentMessageCount--;
-        Serial.println("Message deleted successfully.");
+        if (messageIndex == 0) {
+          messageIndex = currentMessageCount; // Adjust messageIndex when at zero
+        } else {
+          messageIndex--;
+        }
         request->send(200, "application/json", "{\"success\":true}");
       } else {
-        Serial.println("Invalid index.");
         request->send(200, "application/json", "{\"success\":false, \"error\":\"Invalid index.\"}");
       }
     } else {
-      Serial.println("Index parameter missing.");
       request->send(200, "application/json", "{\"success\":false, \"error\":\"Index parameter missing.\"}");
     }
   });
@@ -294,8 +352,6 @@ void setup() {
   server.on("/blockDevice", HTTP_GET, [](AsyncWebServerRequest *request){
     if (request->hasParam("ip")) {
       String ip = request->getParam("ip")->value();
-
-      // Check if the IP is already in the blocked list
       if (std::find(blockedIPs.begin(), blockedIPs.end(), ip) == blockedIPs.end()) {
         blockedIPs.push_back(ip); // Block the IP address if not already blocked
         request->send(200, "application/json", "{\"success\":true}");
